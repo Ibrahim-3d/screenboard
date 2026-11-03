@@ -142,7 +142,7 @@ export function framework(root) {
   const deps = { ...pkg?.dependencies, ...pkg?.devDependencies };
   const hit = FRAMEWORKS.find(([, t]) => t(deps));
   if (hit) return hit[0];
-  return walk(root, 4000).some((f) => f.endsWith('.html')) ? 'static' : null;
+  return walk(root, 4000).some((f) => f.endsWith('.html') && !mockupPath(f)) ? 'static' : null;
 }
 
 /** Routes for a framework, read from the file system. Dynamic routes come back as patterns. */
@@ -230,7 +230,7 @@ export async function routes(root, fw, { url, manual, exclude = [] } = {}) {
   if (sm.length) { sm.forEach((p) => put(p, 'sitemap')); via.push('sitemap.xml'); }
   const skipped = [];
   for (const { pattern } of fsr.patterns) {
-    if (list.some((r) => rx(pattern).test(r.path))) continue;
+    if (list.some((r) => r.via !== 'files' && rx(pattern).test(r.path))) continue; // listed by a generated file or sitemap
     const s = sample(root, pattern);
     if (s.length) s.forEach((p) => put(p, 'sampled'));
     else skipped.push(pattern);
@@ -289,15 +289,18 @@ export async function probe(url, ms = 1200) {
   } catch { return null; }
 }
 
+const mockupPath = (f) => {
+  const parts = f.split('/').slice(0, -1);
+  return parts.some((s) => /^(mock-?ups?|protos?|prototypes?|designs?|wireframes?)$/i.test(s)) && !parts.some((s) => /^(tools?|tooling|public|static|src|archives?)$/i.test(s));
+};
+
 /** Mockup folders: .html files under a folder named mockups / prototype / design / wireframes (outside app routes). */
 export function mockups(root, fw) {
   if (fw === 'static') return [];
   const dirs = new Map();
   for (const f of walk(root).filter((f) => f.endsWith('.html'))) {
-    const parts = f.split('/');
-    if (!parts.slice(0, -1).some((s) => /^(mock-?ups?|protos?|prototypes?|designs?|wireframes?)$/i.test(s))) continue;
-    if (parts.some((s) => /^(tools?|tooling|public|static|src|archives?)$/i.test(s))) continue;
-    const d = parts.slice(0, -1).join('/');
+    if (!mockupPath(f)) continue;
+    const d = f.split('/').slice(0, -1).join('/');
     dirs.set(d, (dirs.get(d) || 0) + 1);
   }
   return [...dirs].map(([dir, files]) => ({ path: dir, files }));
@@ -323,7 +326,7 @@ export async function detect(root, { probePorts = true, exclude } = {}) {
   }
   const r = fw ? await routes(root, fw, { url: live ? url : null, exclude }) : { list: [], via: [], skipped: [], notes: [], confidence: 'manual' };
   notes.push(...r.notes);
-  if (r.noRouter) notes.push('no router found: only "/" is shown; add "routes" to the config for client-side screens');
+  if (r.noRouter) notes.push('no router found; list client-side screens in app.routes');
   const rank = { high: 2, medium: 1, manual: 0 };
   const confidence = [fw ? 'high' : 'manual', portConf, r.confidence].sort((a, b) => rank[a] - rank[b])[0];
   return {
