@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CLI: init · dev (default) · add · comments · reply · --check. See README.md.
+// CLI: init · dev (default) · add · comments · reply · shot · --check. See README.md.
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -26,6 +26,7 @@ const HELP = `${NAME} ${VERSION}
   ${NAME} add <file.html|folder>... [--label X] [--width N] [--height N]
   ${NAME} comments [--open|--resolved] [--json]          list pins (frame, source file, element, thread)
   ${NAME} reply <id> ["text"] [--resolve|--reopen]       answer a pin as the agent
+  ${NAME} shot <code|id>                                 absolute paths of a box pin's snapshot PNGs
   ${NAME} --check                                        self-test`;
 
 /** A config from detection: only keys that differ from the defaults are written. */
@@ -146,13 +147,16 @@ async function comments() {
   const rows = pins.map((p) => {
     const f = frames.find((x) => x.id === p.frame);
     const screenFile = p.screen.startsWith(files) ? decodeURI(p.screen.slice(files.length).split('#')[0]) : null;
-    return { ...p, where: f ? [f.space, f.device, f.label].filter(Boolean).join(' ') : p.screen, source: f?.source ?? screenFile ?? frames.find((x) => x.url === p.screen)?.source ?? null };
+    const row = { ...p, where: f ? [f.space, f.device, f.label].filter(Boolean).join(' ') : p.screen, source: f?.source ?? screenFile ?? frames.find((x) => x.url === p.screen)?.source ?? null };
+    if (p.shot) row.shot = { ...p.shot, path: path.join(root, p.shot.file), ctxPath: path.join(root, p.shot.ctxFile) };
+    return row;
   });
   if (has('--json')) return out(JSON.stringify(rows, null, 2));
   if (!rows.length) return out(has('--open') ? 'No open comments.' : 'No comments.');
   for (const r of rows) {
     out(`#${r.id.slice(1)} ${r.status} · ${r.where}${r.source ? ` · ${r.source}` : ''}`);
     if (r.hint) out(`   element: ${r.hint}`);
+    if (r.shot) out(`   shot: ${r.shot.code}${r.shot.method === 'dom' ? ' (dom snapshot, canvases may be blank)' : ''}`, `     box: ${r.shot.path}`, `     in context: ${r.shot.ctxPath}`);
     out(`   selector: ${r.selector}`, `   ${r.author}: ${r.text}`, ...(r.thread || []).map((t) => `   ${t.author}: ${t.text}`), '');
   }
   const open = rows.filter((r) => r.status === 'open').length;
@@ -186,6 +190,15 @@ async function check() {
 }
 
 const cmd = has('--check') ? 'check' : has('--help') || pos[0] === 'help' ? 'help' : has('--version') ? 'version' : pos[0] || 'dev';
-const run = { init, dev, add, comments, reply, check, help: () => out(HELP), version: () => out(VERSION) }[cmd];
+function shot() {
+  const root = findRoot();
+  const key = pos[1];
+  if (!key) fail('usage: shot <code|id>');
+  const p = store.read(path.join(root, COMMENTS_FILE)).find((x) => x.shot && (x.shot.code === key.toUpperCase() || x.id === idOf(key)));
+  if (!p) fail(`no snapshot ${key}`);
+  out(path.join(root, p.shot.file), path.join(root, p.shot.ctxFile));
+}
+
+const run = { init, dev, add, comments, reply, shot, check, help: () => out(HELP), version: () => out(VERSION) }[cmd];
 if (!run) fail(`unknown command "${cmd}"\n\n${HELP}`);
 Promise.resolve(run()).catch((e) => fail(e.message));

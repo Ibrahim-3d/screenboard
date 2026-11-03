@@ -14,17 +14,19 @@ A local canvas of every route of this app (desktop + phone, live through the dev
 {{RUN}} --start --open    # also starts the app's dev server if it is not running
 ```
 
-Leave it running. Comment mode is the C key; the user drops pins there.
+Leave it running. Comment mode is the C key: a click drops a pin, a drag draws a box and saves a snapshot of it (`.screenboard/shots/`).
 
 ## Work the comments
 
 1. `{{RUN}} comments --open` (add `--json` for structured output).
-2. For each pin, open its `source` file. Find the element by `element` (tag, classes, text: grep for the text) and `selector` (CSS path from the page body). Make the change.
-3. `{{RUN}} reply <id> "what changed" --resolve`. If the request is unclear, reply with a question and leave it open.
-4. Re-check: the board hot-reloads; look at the frame (or a screenshot) before resolving. Repeat until `comments --open` is empty.
+2. If a pin has a `shot` (a box the user drew, code like `SB-0001`), look at both PNGs before touching code: `box` is exactly the area meant, `in context` is the whole frame with that area outlined. Read them as images. A `dom snapshot` may show canvases (3D viewports) blank: that is the capture, not the bug.
+3. For each pin, open its `source` file. Find the element by `element` (tag, classes, text: grep for the text) and `selector` (CSS path from the page body; for a box, `shot.box` gives the area as % of that element). Make the change.
+4. `{{RUN}} reply <id> "what changed" --resolve`, naming the shot code when there is one ("SB-0001: ..."). If the request is unclear, reply with a question and leave it open.
+5. Re-check: the board hot-reloads; look at the frame (or a screenshot) before resolving. Repeat until `comments --open` is empty.
 
 ## Other commands
 
+- `{{RUN}} shot <code|id>`: absolute paths of a box pin's two PNGs.
 - `{{RUN}} add <file.html|folder> [--label "Name"]`: put mockups on the board's Mockups space (a folder adds every .html; `file.html#screen` works for hash screens).
 - `{{RUN}} init --dry-run`: show what was detected (framework, dev URL, routes, confidence) without writing.
 - Wrong or missing routes: set `app.routes` (a list of paths) or `app.exclude` (path prefixes) in `{{CONFIG_FILE}}`.
