@@ -41,12 +41,13 @@ Target repos get `screenboard.config.json` (written by `init`) and `.screenboard
 Built 2026-11-03 in the FabLab project (`E:\active_AI_WORKSPACE\PROJECTS\Fablab`, branch `development`) while polishing the editor mockup v2. The owner wanted a Figma-style space to click through a mockup and leave pinned comments an agent can read. Search found no fitting npm tool (Agentation, Impeccable live mode and Penpot were judged worse fits). It was adapted from the owner's own hand-written v3 board (`E:\active_AI_WORKSPACE\PROJECTS\presonal website\tooling\board`, a pan/zoom canvas of live iframes with no comments) and first lived as `Fablab/docs/design/prototype/tool/`. This repo is the extraction. The goal: install in any repo with one command like the owner's `graphify` tool, detect the main site's UI and routes, and also host plain HTML mockups.
 
 ## State
+Published: screenboard@0.1.0 on npm (2026-11-03), repo github.com/Ibrahim-3d/screenboard, site ibrahim-3d.github.io/screenboard.
 Done and tested: init/dev/add/comments/reply/--check, detection for Next (app and pages), Vite with and without react-router, Astro, SvelteKit, Nuxt, Remix, Eleventy, plain HTML, mockups-only repos; canvas with pan/zoom/drag/Fit/Reset/Reload; ▶ Preview (full size, arrow keys step through frames); C pins (drag, reply, resolve, delete, filtered list, open count); layout-proof C key; box snapshots (drag a box in comment mode: tab capture with one prompt per session, DOM fallback), verified in isolated headless Chromium on WebGL, 2D canvas and DOM content, at board zoom 25% and in Preview 1:1.
 Real runs: the FabLab app (Vite, port 5180, medium confidence because no router, only `/`), the FabLab mockups (4 files), the v3 portfolio (`ibrahim3d-v3`, Next, port 3550, 31 routes, high confidence; its dev server was not running so frames showed the start command).
 Known limits: see README "Limits" (dynamic routes without a list, router-less SPAs, monorepo roots, 60-route cap, root-absolute links in mockups, pins drifting after big markup changes).
 
 ## Open items
-1. Name `screenboard` chosen (free on npm 2026-11-03). Remaining: GitHub repo Ibrahim-3d/screenboard, `npm login` then `npm publish`, then `npx -y screenboard init` once in a clean repo.
+1. Next: switch FabLab prototype to this package (item 2); decide .screenboard/ ignore policy (item 4).
 2. Switch FabLab's prototype (`Fablab/docs/design/prototype`, port 5190) from its own older copy of the tool to this package (owner said "switch fablab" is his call).
 3. Skill is Claude Code only; other agents' skill folders are skipped.
 4. No `.gitignore` line is added to target repos by `init`; decide whether `.screenboard/` should be ignored or committed.
