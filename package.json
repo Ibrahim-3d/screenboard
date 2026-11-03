@@ -28,5 +28,14 @@
     "claude-code",
     "agent"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "author": "Ibrahim Elsayed",
+  "homepage": "https://github.com/Ibrahim-3d/screenboard#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ibrahim-3d/screenboard.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Ibrahim-3d/screenboard/issues"
+  }
 }

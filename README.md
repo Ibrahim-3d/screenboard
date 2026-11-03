@@ -7,6 +7,8 @@ npx screenboard init     # detect the app, write screenboard.config.json, instal
 npx screenboard --open   # start the board and open it
 ```
 
+![screenboard demo](https://raw.githubusercontent.com/Ibrahim-3d/screenboard/main/docs/demo.gif)
+
 Zero dependencies, Node 20+, local only (binds to 127.0.0.1).
 
 ## What you get

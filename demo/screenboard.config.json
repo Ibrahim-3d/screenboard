@@ -1,0 +1,13 @@
+{
+  "title": "Ember Coffee",
+  "port": 5191,
+  "authors": [
+    "human",
+    "agent"
+  ],
+  "app": {
+    "framework": "static",
+    "url": null,
+    "start": null
+  }
+}

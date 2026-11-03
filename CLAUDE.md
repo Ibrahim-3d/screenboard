@@ -46,7 +46,7 @@ Real runs: the FabLab app (Vite, port 5180, medium confidence because no router,
 Known limits: see README "Limits" (dynamic routes without a list, router-less SPAs, monorepo roots, 60-route cap, root-absolute links in mockups, pins drifting after big markup changes).
 
 ## Open items
-1. Final name (check it is still free on npm), then GitHub repo, `repository` and `author` in `package.json`, `npm publish`, then `npx -y <name> init` once in a clean repo.
+1. Name `screenboard` chosen (free on npm 2026-11-03). Remaining: GitHub repo Ibrahim-3d/screenboard, `npm login` then `npm publish`, then `npx -y screenboard init` once in a clean repo.
 2. Switch FabLab's prototype (`Fablab/docs/design/prototype`, port 5190) from its own older copy of the tool to this package (owner said "switch fablab" is his call).
 3. Skill is Claude Code only; other agents' skill folders are skipped.
 4. No `.gitignore` line is added to target repos by `init`; decide whether `.screenboard/` should be ignored or committed.
