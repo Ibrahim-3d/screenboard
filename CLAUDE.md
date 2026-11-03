@@ -7,11 +7,11 @@ README.md is the public user doc. This file is for agents working in this repo.
 ## Commands
 | Purpose | Command |
 |---|---|
-| Tests (17, node:test) | `npm test` |
-| Self-test (boots a board against a fake dev server, 21 checks) | `npm run check` |
+| Tests (23, node:test) | `npm test` |
+| Self-test (boots a board against a fake dev server, 30 checks incl. snapshots) | `npm run check` |
 | Start a board | `node bin/screenboard.mjs [dev] [--port N] [--start] [--open]` |
 | Try detection without writing | `node bin/screenboard.mjs init --dry-run` (run it inside an app folder) |
-| Pins for an agent | `node bin/screenboard.mjs comments --open [--json]`, `reply <id> "text" [--resolve]` |
+| Pins for an agent | `node bin/screenboard.mjs comments --open [--json]`, `reply <id> "text" [--resolve]`, `shot <code|id>` |
 
 Run commands from this folder. Default board port is 5191 (next free one if busy). 5190 belongs to the FabLab prototype, 5180 to the FabLab app.
 
@@ -24,7 +24,7 @@ Run commands from this folder. Default board port is 5191 (next free one if busy
 - `fixtures/`: tiny projects, one per supported framework; `test/` uses them.
 
 ## Data contract
-Target repos get `screenboard.config.json` (written by `init`) and `.screenboard/comments.json` (pretty-printed UTF-8, one array). Pin fields: id, screen, frame, selector, x, y, text, author (`founder` | `claude`), status (`open` | `resolved`), createdAt, thread[]. A pin is anchored by frame plus CSS selector plus x/y percentage inside the element. Keep the file human-diffable.
+Target repos get `screenboard.config.json` (written by `init`) and `.screenboard/comments.json` (pretty-printed UTF-8, one array). Pin fields: id, screen, frame, selector, x, y, text, author (`founder` | `claude`), status (`open` | `resolved`), createdAt, thread[]. A pin is anchored by frame plus CSS selector plus x/y percentage inside the element. Box pins add `shot: { code SB-####, file, ctxFile, box { frame, selector, x, y, w, h %, px, dpr, viewport }, method display-capture|dom }`; the PNGs live in `.screenboard/shots/`, only the server writes them (it picks code and file names; clients cannot set `shot`), and deleting the pin deletes them. Old pins without `shot` stay valid. Keep the file human-diffable.
 
 ## Rules for this repo
 - Zero runtime dependencies. Do not add one. Dev tooling is `node --test` only.
@@ -41,7 +41,7 @@ Target repos get `screenboard.config.json` (written by `init`) and `.screenboard
 Built 2026-11-03 in the FabLab project (`E:\active_AI_WORKSPACE\PROJECTS\Fablab`, branch `development`) while polishing the editor mockup v2. The owner wanted a Figma-style space to click through a mockup and leave pinned comments an agent can read. Search found no fitting npm tool (Agentation, Impeccable live mode and Penpot were judged worse fits). It was adapted from the owner's own hand-written v3 board (`E:\active_AI_WORKSPACE\PROJECTS\presonal website\tooling\board`, a pan/zoom canvas of live iframes with no comments) and first lived as `Fablab/docs/design/prototype/tool/`. This repo is the extraction. The goal: install in any repo with one command like the owner's `graphify` tool, detect the main site's UI and routes, and also host plain HTML mockups.
 
 ## State
-Done and tested: init/dev/add/comments/reply/--check, detection for Next (app and pages), Vite with and without react-router, Astro, SvelteKit, Nuxt, Remix, Eleventy, plain HTML, mockups-only repos; canvas with pan/zoom/drag/Fit/Reset/Reload; ▶ Preview (full size, arrow keys step through frames); C pins (drag, reply, resolve, delete, filtered list, open count); layout-proof C key.
+Done and tested: init/dev/add/comments/reply/--check, detection for Next (app and pages), Vite with and without react-router, Astro, SvelteKit, Nuxt, Remix, Eleventy, plain HTML, mockups-only repos; canvas with pan/zoom/drag/Fit/Reset/Reload; ▶ Preview (full size, arrow keys step through frames); C pins (drag, reply, resolve, delete, filtered list, open count); layout-proof C key; box snapshots (drag a box in comment mode: tab capture with one prompt per session, DOM fallback), verified in isolated headless Chromium on WebGL, 2D canvas and DOM content, at board zoom 25% and in Preview 1:1.
 Real runs: the FabLab app (Vite, port 5180, medium confidence because no router, only `/`), the FabLab mockups (4 files), the v3 portfolio (`ibrahim3d-v3`, Next, port 3550, 31 routes, high confidence; its dev server was not running so frames showed the start command).
 Known limits: see README "Limits" (dynamic routes without a list, router-less SPAs, monorepo roots, 60-route cap, root-absolute links in mockups, pins drifting after big markup changes).
 

@@ -14,9 +14,10 @@ Zero dependencies, Node 20+, local only (binds to 127.0.0.1).
 - **App space**: each detected route as a desktop (1440) and phone (390) frame. Frames are the real running dev server, proxied through the board's own port (HTTP and the HMR websocket), so a saved file updates the board like any open tab. "Full length" shows whole pages, with `vh` units pinned to the device height.
 - **Mockups space**: static HTML files served straight from disk. A folder adds every `.html` in it; links between mockup pages work.
 - **Comments**: press `C`, click anything, type. Pins are anchored to the element (CSS selector + offset), so they follow layout changes. Drag to move, reply, resolve, delete. The list has Open / Resolved / All filters; the open count is always visible.
+- **Box snapshots**: in comment mode, drag instead of click to draw a box. The board saves two PNGs with a code (`SB-0001`): the boxed area, and the whole frame with the box outlined, so an agent sees exactly what you meant. Pixels come from a capture of the board's own tab (WebGL and canvases included; the browser asks once per session). If you refuse, a DOM snapshot is used instead and marked as such (canvases may come out blank).
 - Pan (drag the background, or Space + drag), zoom (Ctrl/Cmd + wheel), drag a frame by its label (positions are remembered), Fit, Reset layout, Reload frames, ▶ Preview (full size, step through every frame with the arrow keys; also on each frame), and the label link opens the page alone (with pins). Shortcuts sit at the bottom left.
 
-Pins are stored in `.screenboard/comments.json`: pretty-printed UTF-8, one array, easy to diff and commit.
+Pins are stored in `.screenboard/comments.json`: pretty-printed UTF-8, one array, easy to diff and commit. Snapshots sit next to it in `.screenboard/shots/`; a box pin carries `shot: { code, file, ctxFile, box, method }` (box = % of the anchor element, plus px, devicePixelRatio and viewport at capture). Deleting a pin deletes its PNGs.
 
 ## Commands
 
@@ -27,11 +28,12 @@ Pins are stored in `.screenboard/comments.json`: pretty-printed UTF-8, one array
 | `screenboard add <file.html\|folder>... [--label X] [--width N] [--height N]` | Add mockups. `file.html#screen` frames one hash screen. |
 | `screenboard comments [--open\|--resolved] [--json]` | List pins with the frame, the source file, the element (tag, classes, text), the selector and the thread. |
 | `screenboard reply <id> ["text"] [--resolve\|--reopen]` | Answer a pin as the agent. |
+| `screenboard shot <code\|id>` | Absolute paths of a box pin's two PNGs. |
 | `screenboard --check` | Self-test: boots a board against a fake dev server and checks every route. |
 
 ## The agent loop
 
-`init` installs a skill that tells Claude Code (or any agent that reads `.claude/skills`) to run `screenboard comments --open`, open each pin's source file, find the element by its text and selector, make the change, then `screenboard reply <id> "what changed" --resolve`.
+`init` installs a skill that tells Claude Code (or any agent that reads `.claude/skills`) to run `screenboard comments --open`, look at the snapshot PNGs of box pins first, open each pin's source file, find the element by its text and selector, make the change, then `screenboard reply <id> "what changed" --resolve`.
 
 ## How detection works
 
@@ -86,6 +88,7 @@ If the configured port is not answering and it was only the framework default, c
 - Pages that block framing with JavaScript, or need a login, show what the dev server returns to a fresh tab.
 - At most 60 routes are framed; use `exclude` or `routes` for larger sites.
 - Pins are matched by CSS path; a big markup change can move a pin to its nearest surviving parent.
+- Tab-capture snapshots are as sharp as the screen: a box drawn on a zoomed-out board is small. Draw it in ▶ Preview (full size) for detail. The DOM fallback renders at full size but cannot show WebGL, video or cross-origin images, and uses only same-origin styles.
 
 ## License
 
