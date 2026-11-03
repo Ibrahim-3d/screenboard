@@ -62,7 +62,8 @@ export async function buildFrames(root, cfg, { live = true } = {}) {
   }
   for (const m of cfg.mockups || [])
     for (const f of mockupFiles(root, m))
-      frames.push({ id: `mock:${f.rel}${f.suffix}`, label: f.single && m.label ? m.label : f.name + f.suffix, url: `${PREFIX}/files/${encodeURI(f.rel)}${f.suffix}`, width: m.width || 1440, height: m.height || 900, space: 'Mockups', section: f.single ? path.posix.dirname(f.rel) : m.label || f.rel.slice(0, -f.name.length - 1), pair: f.rel + f.suffix, device: null, source: f.rel });
+      if (!frames.some((x) => x.id === `mock:${f.rel}${f.suffix}`))
+      frames.push({ id: `mock:${f.rel}${f.suffix}`, label: f.single && m.label ? m.label : path.posix.basename(f.rel) + f.suffix, url: `${PREFIX}/files/${encodeURI(f.rel)}${f.suffix}`, width: m.width || 1440, height: m.height || 900, space: 'Mockups', section: (!f.single && m.label) || path.posix.dirname(f.rel), pair: f.rel + f.suffix, device: null, source: f.rel });
   return frames;
 }
 

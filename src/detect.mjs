@@ -236,6 +236,7 @@ export async function routes(root, fw, { url, manual, exclude = [] } = {}) {
     else skipped.push(pattern);
   }
   if (list.some((r) => r.via === 'sampled')) via.push('sampled');
+  list.sort((a, b) => (a.path === '/' ? -1 : b.path === '/' ? 1 : a.path.localeCompare(b.path)));
   let out = list.filter((r) => !exclude.some((x) => r.path === x || r.path.startsWith(x.replace(/\/?$/, '/'))));
   const notes = [...fsr.notes];
   if (out.length > MAX_ROUTES) { notes.push(`${out.length} routes, showing the first ${MAX_ROUTES}; add "exclude" prefixes or a "routes" list`); out = out.slice(0, MAX_ROUTES); }
@@ -303,7 +304,9 @@ export function mockups(root, fw) {
     const d = f.split('/').slice(0, -1).join('/');
     dirs.set(d, (dirs.get(d) || 0) + 1);
   }
-  return [...dirs].map(([dir, files]) => ({ path: dir, files }));
+  // one entry per top-most folder; its sub-folders become their own sections on the board
+  const top = [...dirs.keys()].filter((d) => ![...dirs.keys()].some((o) => d.startsWith(o + '/')));
+  return top.map((dir) => ({ path: dir, files: [...dirs].filter(([d]) => d === dir || d.startsWith(dir + '/')).reduce((n, [, c]) => n + c, 0) }));
 }
 
 /** Full detection for init: framework, dev URL (probed), routes, start command, mockups and a confidence grade. */
