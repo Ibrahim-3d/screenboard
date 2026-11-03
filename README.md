@@ -2,6 +2,8 @@
 
 Every route of your app and every HTML mockup on one pan/zoom canvas, live, with numbered comment pins that your coding agent can read, fix, answer and resolve.
 
+[npm](https://www.npmjs.com/package/screenboard) · [Site](https://ibrahim-3d.github.io/screenboard/) · MIT
+
 ```
 npx screenboard init     # detect the app, write screenboard.config.json, install the agent skill
 npx screenboard --open   # start the board and open it

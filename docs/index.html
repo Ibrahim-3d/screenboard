@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>screenboard</title>
+<meta name="description" content="Every route of your app and every HTML mockup on one pan/zoom canvas, with comment pins your coding agent can read and resolve.">
+<style>
+:root{--bg:#faf6ef;--fg:#1d1a16;--mut:#5b534a;--ac:#c8512b;--card:#fff;--code:#1d1a16;--codefg:#faf6ef}
+@media (prefers-color-scheme:dark){:root{--bg:#161412;--fg:#f3ece1;--mut:#a89d8e;--card:#201d1a;--code:#0e0d0c;--codefg:#f3ece1}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 system-ui,sans-serif}
+main{max-width:960px;margin:0 auto;padding:56px 16px 72px}
+h1{font-size:clamp(34px,6vw,56px);line-height:1.05;margin:0 0 16px}
+p{color:var(--mut);max-width:60ch;margin:0 0 24px}
+pre{background:var(--code);color:var(--codefg);padding:16px 20px;border-radius:12px;overflow:auto;margin:0 0 32px;font-size:15px}
+video{width:100%;border-radius:12px;box-shadow:0 2px 12px #0003;margin-bottom:32px;background:#000}
+ul{list-style:none;padding:0;margin:0 0 32px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+li{background:var(--card);border-radius:12px;padding:20px}
+li b{display:block;margin-bottom:4px}
+li span{color:var(--mut)}
+a{color:var(--ac);font-weight:600}
+</style>
+</head>
+<body>
+<main>
+<h1>screenboard</h1>
+<p>Every route of your app and every HTML mockup on one pan/zoom canvas, with comment pins your coding agent can read and resolve.</p>
+<pre>npx screenboard init
+npx screenboard --open</pre>
+<video src="demo.mp4" poster="demo.gif" controls muted loop playsinline></video>
+<ul>
+<li><b>App and mockups</b><span>Live routes plus static HTML on one canvas.</span></li>
+<li><b>Pins</b><span>Anchored to the element, with replies and resolve.</span></li>
+<li><b>Box snapshots</b><span>Drag a box, the agent gets the PNG.</span></li>
+<li><b>Zero dependencies</b><span>Node 20+, local only.</span></li>
+</ul>
+<a href="https://github.com/Ibrahim-3d/screenboard">GitHub</a> · <a href="https://www.npmjs.com/package/screenboard">npm</a>
+</main>
+</body>
+</html>
