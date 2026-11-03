@@ -119,6 +119,30 @@
         gap: 220px;
         width: max-content;
       }
+      #keys {
+        position: fixed;
+        left: 12px;
+        bottom: 12px;
+        z-index: 3;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 16px;
+        padding: 8px 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+        color: var(--dim);
+        font-size: 12px;
+        pointer-events: none;
+      }
+      #keys kbd {
+        padding: 1px 6px;
+        border: 1px solid var(--line);
+        border-bottom-width: 2px;
+        border-radius: 4px;
+        color: var(--ink);
+        font: 600 11px/1.4 system-ui, sans-serif;
+      }
       #empty {
         position: absolute;
         inset: 0;
@@ -242,6 +266,13 @@
       <span id="cm-slot"></span>
     </header>
     <main id="view"><div id="world"></div><div id="empty" hidden></div></main>
+    <aside id="keys" aria-label="Shortcuts">
+      <span><kbd>C</kbd> Comments</span>
+      <span><kbd>Drag</kbd> Pan</span>
+      <span><kbd>Space</kbd> + <kbd>Drag</kbd> Pan over frames</span>
+      <span><kbd>Ctrl</kbd> + <kbd>Scroll</kbd> Zoom</span>
+      <span><kbd>Shift</kbd> + <kbd>1</kbd> Fit</span>
+    </aside>
     <div id="play">
       <header>
         <b id="play-title"></b>
@@ -528,6 +559,18 @@
         },
       };
 
+      // A page that focuses itself while loading would take the board's keys (C, Space): a frame keeps focus only when
+      // the pointer is over it (the user clicked in).
+      let hovered = null;
+      world.addEventListener("pointerover", (e) => e.target.tagName === "IFRAME" && (hovered = e.target));
+      world.addEventListener("pointerout", (e) => e.target === hovered && (hovered = null));
+      addEventListener("blur", () =>
+        setTimeout(() => {
+          const a = document.activeElement;
+          if (a?.tagName === "IFRAME" && a !== hovered && a !== playFrame) (a.blur(), window.focus());
+        }),
+      );
+
       // Figma-style navigation: wheel pans the board (outside frames), Ctrl/Cmd + wheel or pinch zooms.
       view.addEventListener(
         "wheel",
@@ -597,7 +640,7 @@
         if (e.code === "Space" && !e.repeat && !/INPUT|TEXTAREA/.test(e.target.tagName)) view.classList.add("space");
         if ((e.ctrlKey || e.metaKey) && (e.key === "=" || e.key === "+")) (e.preventDefault(), zoomAt(1.25, innerWidth / 2, innerHeight / 2));
         if ((e.ctrlKey || e.metaKey) && e.key === "-") (e.preventDefault(), zoomAt(0.8, innerWidth / 2, innerHeight / 2));
-        if (e.shiftKey && e.key === "!") fit();
+        if (e.shiftKey && e.code === "Digit1" && !/INPUT|TEXTAREA/.test(e.target.tagName)) fit();
       });
       addEventListener("keyup", (e) => e.code === "Space" && view.classList.remove("space"));
       document.getElementById("in").onclick = () => zoomAt(1.25, view.clientWidth / 2, view.clientHeight / 2);

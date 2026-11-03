@@ -88,7 +88,7 @@
   // ---------- keys (every window) ----------
   addEventListener('keydown', (e) => {
     if (typing(e) || e.ctrlKey || e.metaKey || e.altKey) return;
-    if (e.key === 'c' || e.key === 'C') { e.preventDefault(); store.setMode(!store.mode); }
+    if (e.code === 'KeyC' || e.key === 'c' || e.key === 'C') { e.preventDefault(); store.setMode(!store.mode); } // code: the C key on any layout
     else if (e.key === 'Escape' && (store.mode || hub().popupOpen())) {
       e.stopImmediatePropagation();
       if (hub().popupOpen()) hub().closePopup(); else store.setMode(false);
