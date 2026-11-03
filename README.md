@@ -14,7 +14,7 @@ Zero dependencies, Node 20+, local only (binds to 127.0.0.1).
 - **App space**: each detected route as a desktop (1440) and phone (390) frame. Frames are the real running dev server, proxied through the board's own port (HTTP and the HMR websocket), so a saved file updates the board like any open tab. "Full length" shows whole pages, with `vh` units pinned to the device height.
 - **Mockups space**: static HTML files served straight from disk. A folder adds every `.html` in it; links between mockup pages work.
 - **Comments**: press `C`, click anything, type. Pins are anchored to the element (CSS selector + offset), so they follow layout changes. Drag to move, reply, resolve, delete. The list has Open / Resolved / All filters; the open count is always visible.
-- Pan (drag the background, or Space + drag), zoom (Ctrl/Cmd + wheel), drag a frame by its label (positions are remembered), Fit, Reset layout, Reload frames, ▶ Play for one frame at full size, and the label link opens the page alone (with pins).
+- Pan (drag the background, or Space + drag), zoom (Ctrl/Cmd + wheel), drag a frame by its label (positions are remembered), Fit, Reset layout, Reload frames, ▶ Preview (full size, step through every frame with the arrow keys; also on each frame), and the label link opens the page alone (with pins). Shortcuts sit at the bottom left.
 
 Pins are stored in `.screenboard/comments.json`: pretty-printed UTF-8, one array, easy to diff and commit.
 

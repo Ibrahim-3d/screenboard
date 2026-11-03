@@ -127,11 +127,9 @@
         display: flex;
         flex-wrap: wrap;
         gap: 6px 16px;
-        padding: 8px 12px;
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        background: var(--panel);
-        color: var(--dim);
+        color: var(--ink);
+        /* no container: a soft outline keeps the labels readable over white pages */
+        text-shadow: 0 0 2px var(--bg), 0 0 2px var(--bg), 0 0 4px var(--bg), 0 0 4px var(--bg), 0 0 8px var(--bg);
         font-size: 12px;
         pointer-events: none;
       }
@@ -140,8 +138,14 @@
         border: 1px solid var(--line);
         border-bottom-width: 2px;
         border-radius: 4px;
+        background: var(--panel);
         color: var(--ink);
         font: 600 11px/1.4 system-ui, sans-serif;
+      }
+      #play-count {
+        min-width: 44px;
+        text-align: center;
+        color: var(--dim);
       }
       #empty {
         position: absolute;
@@ -264,6 +268,7 @@
       <button id="reset">Reset layout</button>
       <button id="reload">Reload frames</button>
       <span id="cm-slot"></span>
+      <button id="play-all">▶ Preview</button>
     </header>
     <main id="view"><div id="world"></div><div id="empty" hidden></div></main>
     <aside id="keys" aria-label="Shortcuts">
@@ -275,11 +280,14 @@
     </aside>
     <div id="play">
       <header>
+        <button id="play-prev" aria-label="Previous frame">‹</button>
+        <span id="play-count"></span>
+        <button id="play-next" aria-label="Next frame">›</button>
         <b id="play-title"></b>
         <span class="sp"></span>
         <button id="play-close">Close</button>
       </header>
-      <iframe id="play-frame" title="Play"></iframe>
+      <iframe id="play-frame" title="Preview"></iframe>
     </div>
     <script>
       // Canvas of live frames: every frame is a same-origin <iframe> (the app through the proxy, or a mockup file), usable
@@ -453,8 +461,8 @@
         size.textContent = [d.device, d.width].filter(Boolean).join(" ");
         const play = document.createElement("button");
         play.className = "play";
-        play.textContent = "▶ Play";
-        play.setAttribute("aria-label", `Play ${d.label}`);
+        play.textContent = "▶ Preview";
+        play.setAttribute("aria-label", `Preview ${d.label}`);
         play.addEventListener("click", () => openPlay(d));
         const right = document.createElement("span");
         right.style.cssText = "display:flex;gap:16px;align-items:center";
@@ -660,21 +668,52 @@
       };
       document.getElementById("reload").onclick = () => document.querySelectorAll("iframe[src]").forEach((f) => (f.src = f.dataset.src));
 
-      // Play: a frame at full size inside the board; the page keeps its own comment mode and pins.
+      // Preview: a frame at full size inside the board; the page keeps its own comment mode and pins.
+      // The header ▶ Preview starts on the frame nearest the middle of the view; ‹ › and the arrow keys step through the
+      // frames of the current space in board order.
       const playBox = document.getElementById("play");
+      let playList = [];
+      let playAt = 0;
       function openPlay(d) {
+        playList = visible();
+        playAt = Math.max(0, playList.findIndex((x) => x.id === d.id));
+        showPlay();
+        playBox.classList.add("on");
+      }
+      function showPlay() {
+        const d = playList[playAt];
         document.getElementById("play-title").textContent = [d.label, d.device].filter(Boolean).join(" · ");
+        document.getElementById("play-count").textContent = playList.length > 1 ? `${playAt + 1} / ${playList.length}` : "";
+        ["play-prev", "play-next"].forEach((id) => (document.getElementById(id).hidden = playList.length < 2));
+        playFrame.style.cssText = `max-width:${d.width}px;margin:0 auto`;
         playFrame.dataset.frame = d.id;
         playFrame.src = d.url;
-        playBox.classList.add("on");
+      }
+      function stepPlay(n) {
+        if (playList.length < 2) return;
+        playAt = (playAt + n + playList.length) % playList.length;
+        showPlay();
       }
       function closePlay() {
         playBox.classList.remove("on");
         playFrame.src = "about:blank";
       }
+      document.getElementById("play-all").addEventListener("click", () => {
+        const v = view.getBoundingClientRect();
+        const mid = [v.left + v.width / 2, v.top + v.height / 2];
+        const dist = (f) => { const b = f.getBoundingClientRect(); return Math.hypot((b.left + b.right) / 2 - mid[0], (b.top + Math.min(b.bottom, v.bottom)) / 2 - mid[1]); };
+        const near = [...document.querySelectorAll(".frame")].sort((a, b) => dist(a) - dist(b))[0];
+        const d = cfg.frames.find((x) => x.id === near?.dataset.id) || visible()[0];
+        if (d) openPlay(d);
+      });
+      document.getElementById("play-prev").addEventListener("click", () => stepPlay(-1));
+      document.getElementById("play-next").addEventListener("click", () => stepPlay(1));
       document.getElementById("play-close").addEventListener("click", closePlay);
       document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape" && playBox.classList.contains("on")) closePlay();
+        if (!playBox.classList.contains("on")) return;
+        if (e.key === "Escape") closePlay();
+        if (e.key === "ArrowRight") stepPlay(1);
+        if (e.key === "ArrowLeft") stepPlay(-1);
       });
 
       cfgReady.then((c) => {
