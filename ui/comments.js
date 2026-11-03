@@ -37,7 +37,7 @@
           return true;
         } catch (e) { s.error = 'Not saved: ' + (e.message || e); s.emit(); return false; }
       },
-      load: () => s.req(), save: (pin) => s.req({ pin }), remove: (id) => s.req({ delete: id }),
+      load: () => s.req(), save: (pin, shot) => s.req(shot ? { pin, shot } : { pin }), remove: (id) => s.req({ delete: id }),
       setMode(m) { s.mode = m; s.emit(); }, setStatus(v) { s.status = v; s.emit(); },
     };
     const c = window.BOARD && window.BOARD.cfg ? Promise.resolve(window.BOARD.cfg) : fetch(BASE + 'api/config').then((r) => r.json());
@@ -75,6 +75,12 @@
   #cm-side li .t{overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
   #cm-side li .m{grid-column:2;color:#6b7075;font-size:12px}
   #cm-side .empty{padding:16px 12px;color:#6b7075}
+  #cm-side li .th{grid-column:2;justify-self:start;max-width:100%;max-height:64px;border:1px solid #e3e5e8;border-radius:4px}
+  .cm-box{position:fixed;box-sizing:border-box;border:2px solid #ff5c1f;background:rgb(255 92 31/.08);pointer-events:none}
+  .cm-box.draft{border-style:dashed}
+  .cm-pop .shot{display:block;max-width:100%;max-height:180px;margin:2px 0 6px;border:1px solid #e3e5e8;border-radius:6px}
+  .cm-pop .code{color:#6b7075;font-weight:400;margin-left:6px}
+  .cm-pop .noshot{margin:2px 0 6px;color:#b3261e;font-size:12px}
   .cm-pop{position:fixed;z-index:2147483002;width:300px;background:#fff;color:#1f1f1f;border-radius:10px;box-shadow:0 2px 6px rgb(0 0 0/.12),0 12px 32px rgb(0 0 0/.18);font:13px/1.45 system-ui,sans-serif;padding:10px 12px}
   .cm-pop .bar{display:flex;gap:4px;align-items:center;margin-bottom:6px}.cm-pop .bar .sp{flex:1}
   .cm-pop .msg{padding:6px 0;border-top:1px solid #f0f1f3;white-space:pre-wrap;word-break:break-word}.cm-pop .msg:first-of-type{border-top:0}
@@ -97,15 +103,163 @@
 
   // ================= hub: popup, list, chip =================
   if (IS_HUB) {
+    // ---------- box snapshots ----------
+    // Real pixels (WebGL included) from a capture of this tab: one permission prompt per board session, the stream stays
+    // open. Fallback when capture is refused or unsupported: a DOM snapshot of the frame (canvases may come out blank).
+    let stream = null;
+    let video = null;
+    let noCapture = false;
+    const canvas = (w, h) => { const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(w)); c.height = Math.max(1, Math.round(h)); return c; };
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    function startCapture() { // called synchronously inside the user's gesture (the pointerup that ends the box)
+      if (stream && stream.active) return Promise.resolve(true);
+      if (noCapture || !navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) return Promise.resolve(false);
+      return navigator.mediaDevices.getDisplayMedia({ video: { displaySurface: 'browser' }, audio: false, preferCurrentTab: true, selfBrowserSurface: 'include', surfaceSwitching: 'exclude' })
+        .then(async (st) => {
+          const v = document.createElement('video');
+          v.muted = true;
+          v.srcObject = st;
+          await v.play();
+          const track = st.getVideoTracks()[0];
+          // only this tab lines up with the box: another tab or window is refused (the sharing bar resizes the tab, so retry)
+          let same = false;
+          for (let i = 0; i < 10 && !same; i++) { same = v.videoWidth > 0 && Math.abs(v.videoWidth / v.videoHeight - innerWidth / innerHeight) < 0.03; if (!same) await wait(100); }
+          if (track.getSettings().displaySurface !== 'browser' || !same) { st.getTracks().forEach((t) => t.stop()); noCapture = true; return false; }
+          track.addEventListener('ended', () => { stream = null; noCapture = true; });
+          stream = st;
+          video = v;
+          return true;
+        })
+        .catch(() => { noCapture = true; return false; });
+    }
+    async function screenFrame() {
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      await wait(150);
+      if (video.requestVideoFrameCallback) await new Promise((r) => { video.requestVideoFrameCallback(() => r()); setTimeout(r, 250); });
+      const c = canvas(video.videoWidth, video.videoHeight);
+      c.getContext('2d').drawImage(video, 0, 0);
+      return c;
+    }
+    const toDataUrl = (blob) => new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.onerror = () => r(''); fr.readAsDataURL(blob); });
+    async function domFrame(win, scale) {
+      const doc = win.document;
+      const W = win.innerWidth, H = win.innerHeight;
+      const clone = doc.documentElement.cloneNode(true);
+      const imgs = [...doc.querySelectorAll('img')], cimgs = [...clone.querySelectorAll('img')];
+      await Promise.all(cimgs.slice(0, 60).map(async (img, i) => {
+        const src = imgs[i] && (imgs[i].currentSrc || imgs[i].src);
+        img.removeAttribute('srcset');
+        img.removeAttribute('loading');
+        if (!src || src.startsWith('data:')) return;
+        try { img.src = await toDataUrl(await (await fetch(src)).blob()); } catch { img.removeAttribute('src'); }
+      }));
+      const cvs = [...doc.querySelectorAll('canvas')];
+      [...clone.querySelectorAll('canvas')].forEach((c, i) => {
+        const img = doc.createElement('img');
+        try { img.src = cvs[i].toDataURL(); } catch { /* tainted canvas */ }
+        ['id', 'class', 'style'].forEach((a) => c.hasAttribute(a) && img.setAttribute(a, c.getAttribute(a)));
+        img.width = cvs[i].clientWidth;
+        img.height = cvs[i].clientHeight;
+        c.replaceWith(img);
+      });
+      clone.querySelectorAll('script, link[rel~="stylesheet"], style, #cm-pins, #cm-chip, #cm-side, .cm-pop').forEach((e) => e.remove());
+      let cssText = '';
+      for (const sh of [...doc.styleSheets, ...(doc.adoptedStyleSheets || [])]) { try { for (const r of sh.cssRules) cssText += r.cssText + '\n'; } catch { /* cross-origin sheet */ } }
+      const st = doc.createElement('style');
+      st.textContent = cssText;
+      (clone.querySelector('head') || clone).prepend(st);
+      const dw = Math.max(W, doc.documentElement.scrollWidth), dh = Math.max(H, doc.documentElement.scrollHeight);
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}"><foreignObject x="${-win.scrollX}" y="${-win.scrollY}" width="${dw}" height="${dh}">${new XMLSerializer().serializeToString(clone)}</foreignObject></svg>`;
+      const im = new Image();
+      im.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+      await im.decode();
+      const c = canvas(W * scale, H * scale);
+      const g = c.getContext('2d');
+      g.fillStyle = '#fff';
+      g.fillRect(0, 0, c.width, c.height);
+      g.drawImage(im, 0, 0, c.width, c.height);
+      return c;
+    }
+    // A capture that failed comes out as one flat color (black, white, transparent): never save that.
+    function flat(c) {
+      const t = canvas(48, 48), g = t.getContext('2d', { willReadFrequently: true });
+      g.drawImage(c, 0, 0, 48, 48);
+      const d = g.getImageData(0, 0, 48, 48).data;
+      for (let i = 4; i < d.length; i += 4) if (Math.abs(d[i] - d[0]) + Math.abs(d[i + 1] - d[1]) + Math.abs(d[i + 2] - d[2]) + Math.abs(d[i + 3] - d[3]) > 6) return false;
+      return true;
+    }
+    function cut(src, r) {
+      const x = Math.max(0, Math.round(r.x)), y = Math.max(0, Math.round(r.y));
+      const w = Math.min(src.width - x, Math.round(r.w + Math.min(0, r.x))), h = Math.min(src.height - y, Math.round(r.h + Math.min(0, r.y)));
+      if (w < 1 || h < 1) throw new Error('box is off screen');
+      const c = canvas(w, h);
+      c.getContext('2d').drawImage(src, x, y, w, h, 0, 0, w, h);
+      return c;
+    }
+    // the whole visible frame with the box outlined, at most 4000 px on its long side
+    function context(src, area, b, unit) {
+      const c0 = cut(src, area);
+      const k = Math.min(1, 4000 / Math.max(c0.width, c0.height));
+      const c = canvas(c0.width * k, c0.height * k), g = c.getContext('2d');
+      g.drawImage(c0, 0, 0, c.width, c.height);
+      g.lineWidth = Math.max(2, 3 * unit * k);
+      g.strokeStyle = '#ff5c1f';
+      g.strokeRect((b.x - Math.max(0, area.x)) * k, (b.y - Math.max(0, area.y)) * k, b.w * k, b.h * k);
+      return c;
+    }
+    const meet = (a, b) => ({ left: Math.max(a.left, b.left), top: Math.max(a.top, b.top), right: Math.min(a.right, b.right), bottom: Math.min(a.bottom, b.bottom) });
+    async function viaScreen(o) {
+      const full = await screenFrame();
+      if (flat(full)) return null;
+      const k = full.width / innerWidth; // css px -> captured px (device pixel ratio and page zoom included)
+      const fe = o.frameEl;
+      const win = { left: 0, top: 0, right: innerWidth, bottom: innerHeight };
+      const fr = fe ? fe.getBoundingClientRect() : win;
+      const z = fe ? window.BOARD.zoomOf(fe) : 1;
+      const clip = fe && fe.id !== 'play-frame' ? document.getElementById('view').getBoundingClientRect() : win;
+      const v = meet(meet(fr, clip), win);
+      const b = { x: (fr.left + o.box.x * z) * k, y: (fr.top + o.box.y * z) * k, w: o.box.w * z * k, h: o.box.h * z * k };
+      return { png: cut(full, b).toDataURL('image/png'), ctx: context(full, { x: v.left * k, y: v.top * k, w: (v.right - v.left) * k, h: (v.bottom - v.top) * k }, b, k).toDataURL('image/png'), method: 'display-capture' };
+    }
+    async function viaDom(o) {
+      const W = o.win.innerWidth, H = o.win.innerHeight;
+      const s = Math.max(0.25, Math.min(2, o.win.devicePixelRatio || 1, Math.sqrt(16e6 / (W * H))));
+      const full = await domFrame(o.win, s);
+      if (flat(full)) throw new Error('snapshot came out empty');
+      const b = { x: o.box.x * s, y: o.box.y * s, w: o.box.w * s, h: o.box.h * s };
+      return { png: cut(full, b).toDataURL('image/png'), ctx: context(full, { x: 0, y: 0, w: full.width, h: full.height }, b, s).toDataURL('image/png'), method: 'dom' };
+    }
+    /** o = { win, frameEl, box: { x, y, w, h } in the page's own css px, before(), after() }. Call inside the gesture. */
+    CM.capture = (o) => {
+      const started = startCapture();
+      CM.closePopup(); // an open popup would be in the picture
+      return (async () => {
+        const hide = [...document.querySelectorAll('#keys, #cm-chip.fixed, #cm-side.fixed')];
+        hide.forEach((e) => (e.style.visibility = 'hidden'));
+        o.before();
+        try {
+          if (await started) { const r = await viaScreen(o); if (r) return r; }
+          return await viaDom(o);
+        } catch (e) {
+          return { error: e.message || String(e) };
+        } finally {
+          o.after();
+          hide.forEach((e) => (e.style.visibility = ''));
+        }
+      })();
+    };
+
     let pop = null; // { el, target, onClose }
     CM.popupOpen = () => !!pop;
-    CM.closePopup = () => { if (!pop) return; const p = pop; pop = null; p.el.remove(); p.onClose && p.onClose(); };
+    CM.popupId = () => pop && pop.target.id;
+    CM.closePopup = () => { if (!pop) return; const p = pop; pop = null; p.el.remove(); p.onClose && p.onClose(); store.emit(); };
     CM.popup = (target, x, y, onClose) => {
       CM.closePopup();
       const el = h('div', 'cm-pop');
       pop = { el, target, onClose };
       document.body.appendChild(el);
       fillPopup();
+      store.emit(); // pages draw the open pin's box
       const r = el.getBoundingClientRect();
       el.style.left = Math.max(8, Math.min(x + 18, innerWidth - r.width - 8)) + 'px';
       el.style.top = Math.max(8, Math.min(y - 20, innerHeight - r.height - 8)) + 'px';
@@ -129,10 +283,13 @@
         ta.placeholder = 'Comment';
         ta.setAttribute('aria-label', 'Comment');
         const ok = h('button', 'pri', 'Comment');
+        const shot = target.shot && target.shot.png ? target.shot : null;
+        if (shot) { const im = h('img', 'shot'); im.src = shot.png; im.alt = ''; el.append(im); }
+        else if (target.shot) el.append(h('div', 'noshot', 'No snapshot: ' + target.shot.error));
         const submit = async () => {
           if (!ta.value.trim()) return;
           ok.disabled = true;
-          if (await store.save({ ...target.draft, text: ta.value.trim(), author: human, status: 'open', thread: [] })) CM.closePopup();
+          if (await store.save({ ...target.draft, text: ta.value.trim(), author: human, status: 'open', thread: [] }, shot && { png: shot.png, ctx: shot.ctx, box: target.box, method: shot.method })) CM.closePopup();
           else ok.disabled = false;
         };
         ok.onclick = submit;
@@ -141,7 +298,8 @@
         cancel.onclick = () => CM.closePopup();
         const act = h('div', 'act');
         act.append(cancel, ok);
-        el.append(bar, ta, act);
+        el.prepend(bar);
+        el.append(ta, act);
         return;
       }
       const p = store.pins.find((x) => x.id === target.id);
@@ -150,7 +308,9 @@
       res.onclick = () => store.save({ id: p.id, status: p.status === 'open' ? 'resolved' : 'open' });
       const del = h('button', null, 'Delete');
       del.onclick = async () => { if (confirm(`Delete comment #${num(p.id)}?`)) { await store.remove(p.id); CM.closePopup(); } };
-      bar.append(h('b', null, '#' + num(p.id)), h('span', 'sp'), res, del, close);
+      const title = h('b', null, '#' + num(p.id));
+      if (p.shot) title.append(h('span', 'code', p.shot.code));
+      bar.append(title, h('span', 'sp'), res, del, close);
       const msgs = h('div', 'msgs');
       [{ author: p.author, text: p.text, createdAt: p.createdAt }, ...(p.thread || [])].forEach((m) => {
         const d = h('div', 'msg');
@@ -170,7 +330,18 @@
       ta.onkeydown = (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submit(); };
       const act = h('div', 'act');
       act.append(send);
-      el.append(bar, msgs, ta, act);
+      el.append(bar);
+      if (p.shot) {
+        const a = h('a');
+        a.href = BASE + 'shots/' + p.shot.code + '-ctx.png';
+        a.target = '_blank';
+        const im = h('img', 'shot');
+        im.src = BASE + 'shots/' + p.shot.code + '.png';
+        im.alt = p.shot.code;
+        a.append(im);
+        el.append(a);
+      }
+      el.append(msgs, ta, act);
       msgs.scrollTop = msgs.scrollHeight;
     }
     addEventListener('pointerdown', (e) => { if (pop && !pop.el.contains(e.target) && !e.target.closest('.cm-pin')) CM.closePopup(); }, true);
@@ -218,7 +389,9 @@
       list.forEach((p) => {
         const li = h('li', p.status === 'resolved' ? 'res' : '');
         const replies = (p.thread || []).length;
-        li.append(h('span', 'n', String(num(p.id))), h('span', 't', p.text), h('span', 'm', `${where(p)}${replies ? ` · ${replies} ${replies === 1 ? 'reply' : 'replies'}` : ''}`));
+        li.append(h('span', 'n', String(num(p.id))), h('span', 't', p.text));
+        if (p.shot) { const im = h('img', 'th'); im.src = BASE + 'shots/' + p.shot.code + '.png'; im.alt = p.shot.code; im.loading = 'lazy'; li.append(im); }
+        li.append(h('span', 'm', `${where(p)}${p.shot ? ' · ' + p.shot.code : ''}${replies ? ` · ${replies} ${replies === 1 ? 'reply' : 'replies'}` : ''}`));
         li.onclick = () => (IS_BOARD ? window.BOARD.focus(p) : CM.show(p.id));
         ol.append(li);
       });
@@ -308,18 +481,40 @@
       el.style.top = y - 26 * k + 'px';
       el.style.transform = `scale(${k})`;
     }
+    // A box outline in page px; its border keeps one screen width at any board zoom.
+    function boxEl(r, cls) {
+      const d = h('div', cls);
+      Object.assign(d.style, { left: r.x + 'px', top: r.y + 'px', width: r.w + 'px', height: r.h + 'px', borderWidth: 2 / zoom() + 'px' });
+      return d;
+    }
+    // where a box pin's box is now: its % of the anchor element, re-measured
+    function boxOf(p) {
+      const b = p.shot && p.shot.box;
+      const hit = b && resolve({ selector: b.selector });
+      if (!hit) return null;
+      const r = hit.el.getBoundingClientRect();
+      return { x: r.left + (r.width * b.x) / 100, y: r.top + (r.height * b.y) / 100, w: (r.width * b.w) / 100, h: (r.height * b.h) / 100 };
+    }
+    let hover = null;
     function render() {
       document.documentElement.classList.toggle('cm-on', store.mode);
       markRoots();
       layer.replaceChildren();
-      if (draft) { const d = h('div', 'cm-pin draft', '+'); place(d, draft.cx, draft.cy); layer.append(d); }
+      if (draft && draft.box) layer.append(boxEl(draft.box, 'cm-box draft'));
+      else if (draft) { const d = h('div', 'cm-pin draft', '+'); place(d, draft.cx, draft.cy); layer.append(d); }
       if (!store.mode) return;
+      const open = hub().popupId && hub().popupId();
       store.pins.filter((p) => passes(p) && shows(p)).forEach((p) => {
         const pt = pointOf(p);
         if (!pt) return;
+        if (p.shot && (p.id === hover || p.id === open)) { const b = boxOf(p); if (b) layer.append(boxEl(b, 'cm-box')); }
         const d = h('div', 'cm-pin' + (p.status === 'resolved' ? ' res' : ''), String(num(p.id)));
         d.dataset.id = p.id;
         d.title = p.text;
+        if (p.shot) {
+          d.onpointerenter = () => { hover = p.id; later(); };
+          d.onpointerleave = () => { hover = null; later(); };
+        }
         place(d, pt.x, pt.y);
         layer.append(d);
       });
@@ -334,14 +529,41 @@
     addEventListener('hashchange', later);
     new MutationObserver((ms) => { if (ms.some((m) => !layer.contains(m.target) && m.target !== layer)) later(); }).observe(document.body, { subtree: true, childList: true, attributes: true, characterData: true });
 
-    // comment mode swallows clicks inside the anchor roots; a click drops a pin
+    // comment mode swallows clicks inside the anchor roots; a click drops a pin, a drag draws a box
     const inRoot = (t) => roots().find((r) => r.contains(t));
+    let press = null;
+    let boxing = null;
+    let swallowClick = 0;
+    const rectOf = (a, e) => {
+      const x = Math.max(0, Math.min(a.x, e.clientX)), y = Math.max(0, Math.min(a.y, e.clientY));
+      return { x, y, w: Math.min(innerWidth, Math.max(a.x, e.clientX)) - x, h: Math.min(innerHeight, Math.max(a.y, e.clientY)) - y };
+    };
+    // registered before `block` (which stops other window listeners) so the drag's end is always seen
+    addEventListener('pointerup', (e) => {
+      const b = boxing;
+      press = boxing = null;
+      if (!b) return;
+      if (b.w < 8 || b.h < 8) { draft = null; return later(); } // too small: the click drops a point pin instead
+      swallowClick = performance.now() + 500;
+      newBox(b);
+    }, true);
+    addEventListener('pointermove', (e) => {
+      if (!press || !store.mode) return;
+      if (!boxing && Math.hypot(e.clientX - press.x, e.clientY - press.y) < 6) return;
+      boxing = rectOf(press, e);
+      draft = { box: boxing };
+      later();
+    }, true);
     const block = (e) => {
       if (!store.mode || e.target.closest('#cm-pins, #cm-chip, #cm-side, .cm-pop')) return;
       if (!inRoot(e.target)) return;
       e.preventDefault();
       e.stopImmediatePropagation();
-      if (e.type === 'click') newPin(e);
+      if (e.type === 'pointerdown' && e.button === 0) {
+        press = { x: e.clientX, y: e.clientY };
+        try { e.target.setPointerCapture(e.pointerId); } catch { /* not capturable */ }
+      }
+      if (e.type === 'click' && performance.now() > swallowClick) newPin(e);
     };
     ['pointerdown', 'mousedown', 'mouseup', 'pointerup', 'click', 'dblclick', 'contextmenu'].forEach((t) => addEventListener(t, block, true));
     if (host) addEventListener('pointerdown', () => host.CM.popupOpen() && host.CM.closePopup(), true);
@@ -360,6 +582,28 @@
       render();
       const pt = toHub(e.clientX, e.clientY);
       hub().popup({ draft: a }, pt.x, pt.y, () => { draft = null; later(); });
+    }
+    // A box pin: anchored to the smallest element that holds the whole box; the snapshot starts inside the gesture.
+    function newBox(b) {
+      layer.style.display = 'none';
+      let el = document.elementFromPoint(b.x + b.w / 2, b.y + b.h / 2);
+      layer.style.display = '';
+      const root = el && inRoot(el);
+      if (!root) { draft = null; return later(); }
+      const holds = (r) => r.left <= b.x + 1 && r.top <= b.y + 1 && r.right >= b.x + b.w - 1 && r.bottom >= b.y + b.h - 1;
+      while (el !== root && !holds(el.getBoundingClientRect())) el = el.parentElement;
+      const r = el.getBoundingClientRect();
+      const pc = (v, s) => (v / (s || 1)) * 100;
+      const a = { screen: screenKey(), frame: frameId, selector: selectorFor(el, root), hint: hintFor(el), x: pc(b.x - r.left, r.width), y: pc(b.y - r.top, r.height) };
+      const box = { frame: frameId, selector: a.selector, x: a.x, y: a.y, w: pc(b.w, r.width), h: pc(b.h, r.height), px: { ...b }, dpr: devicePixelRatio, viewport: { w: innerWidth, h: innerHeight } };
+      hub()
+        .capture({ win: window, frameEl: host ? frameElement : null, box: b, before: () => (layer.style.visibility = 'hidden'), after: () => (layer.style.visibility = '') })
+        .then((shot) => {
+          draft = { box: b }; // set after capture: closing an older popup clears the draft
+          later();
+          const pt = toHub(b.x + b.w, b.y);
+          hub().popup({ draft: a, box, shot }, pt.x, pt.y, () => { draft = null; later(); });
+        });
     }
 
     // drag a pin to move it; a plain click opens it
