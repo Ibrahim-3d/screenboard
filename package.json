@@ -1,0 +1,32 @@
+{
+  "name": "screenboard",
+  "version": "0.1.0",
+  "description": "Every route of your app and every HTML mockup on one pan/zoom canvas, with comment pins your coding agent can read and resolve.",
+  "type": "module",
+  "bin": {
+    "screenboard": "bin/screenboard.mjs"
+  },
+  "files": [
+    "bin",
+    "src",
+    "ui",
+    "skill",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --test",
+    "check": "node bin/screenboard.mjs --check"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "design-review",
+    "comments",
+    "board",
+    "mockups",
+    "claude-code",
+    "agent"
+  ],
+  "license": "MIT"
+}
