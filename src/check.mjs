@@ -89,6 +89,28 @@ export async function selfCheck() {
     ok((await post({ pin: { screen: '/', selector: 'b', x: 1, y: 1, text: 'x', author: 'human' } })).s === 500 && fs.readFileSync(file, 'utf8') === '[ broken', 'unreadable file never overwritten');
     fs.writeFileSync(file, JSON.stringify(c2.j));
     ok((await post({ delete: 'p1' })).j.length === 0, 'pin deleted');
+
+    // box snapshots
+    const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    const box = { frame: 'desktop:/about', selector: ':scope > h1:nth-of-type(1)', x: 10, y: 10, w: 50, h: 40, px: { x: 20, y: 30, w: 200, h: 60 }, dpr: 2, viewport: { w: 1440, h: 900 } };
+    const pin = (text) => ({ screen: '/about', frame: 'desktop:/about', selector: ':scope > h1:nth-of-type(1)', x: 10, y: 10, text, author: 'human' });
+    const shotsDir = path.join(tmp, DATA_DIR, 'shots');
+    const s1 = await post({ pin: pin('boxed'), shot: { png: PNG, ctx: PNG, box, method: 'display-capture' } });
+    const sh = s1.j[0]?.shot;
+    ok(s1.s === 200 && sh?.code === 'SB-0001' && sh.file === `${DATA_DIR}/shots/SB-0001.png` && sh.ctxFile === `${DATA_DIR}/shots/SB-0001-ctx.png` && sh.box.dpr === 2 && sh.method === 'display-capture', 'box pin saved with shot code, files, box, method');
+    ok(fs.readFileSync(path.join(shotsDir, 'SB-0001.png')).equals(Buffer.from(PNG.split(',')[1], 'base64')) && fs.existsSync(path.join(shotsDir, 'SB-0001-ctx.png')), 'both PNGs written byte-exact');
+    const img = await req(port, PREFIX + '/shots/SB-0001-ctx.png');
+    ok(img.s === 200 && img.h['content-type'] === 'image/png', 'snapshot served');
+    ok((await req(port, PREFIX + '/shots/..%2fcomments.json')).s === 404, 'snapshot route refuses other files');
+    const bad = await post({ pin: pin('fake'), shot: { png: 'data:image/png;base64,' + Buffer.from('<svg/>').toString('base64'), ctx: PNG, box, method: 'dom' } });
+    ok(bad.s === 400 && fs.readdirSync(shotsDir).length === 2, 'non-PNG refused, nothing written');
+    ok((await post({ pin: { ...pin('x'), id: 'p1' }, shot: { png: PNG, ctx: PNG, box, method: 'dom' } })).s === 400, 'snapshot only with a new pin');
+    const forged = await post({ pin: { ...pin('plain'), shot: { code: 'SB-0009', file: '../../etc/passwd' } } });
+    ok(forged.s === 200 && !forged.j.at(-1).shot, 'client cannot set a shot path');
+    const s2 = await post({ pin: pin('second'), shot: { png: PNG, ctx: PNG, box, method: 'dom' } });
+    ok(s2.j.at(-1).shot.code === 'SB-0002', 'codes increment');
+    const del = await post({ delete: s1.j[0].id });
+    ok(del.s === 200 && !fs.existsSync(path.join(shotsDir, 'SB-0001.png')) && !fs.existsSync(path.join(shotsDir, 'SB-0001-ctx.png')) && fs.existsSync(path.join(shotsDir, 'SB-0002.png')), 'deleting a pin deletes its PNGs only');
   } catch (e) {
     ok(false, 'unexpected error: ' + e.message);
   } finally {

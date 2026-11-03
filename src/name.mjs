@@ -11,3 +11,5 @@ export const COMMENTS_FILE = `${DATA_DIR}/comments.json`;
 export const PREFIX = `/__${NAME}`;
 export const RUN = `npx -y ${NAME}`;
 export const BOARD_PORT = 5191;
+export const SHOTS_DIR = `${DATA_DIR}/shots`;
+export const SHOT_PREFIX = 'SB'; // box snapshot codes: SB-0001, SB-0002, ...
