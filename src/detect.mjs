@@ -310,12 +310,12 @@ export function mockups(root, fw) {
 }
 
 /** Full detection for init: framework, dev URL (probed), routes, start command, mockups and a confidence grade. */
-export async function detect(root, { probePorts = true, exclude } = {}) {
+export async function detect(root, { probePorts = true, exclude, offline = false } = {}) { // offline: treat every port as down (tests)
   const fw = framework(root);
   const notes = [];
   let port = fw && fw !== 'static' ? devPort(root, fw) : { port: null, source: null };
   let url = port.port ? `http://localhost:${port.port}` : null;
-  let live = url ? (await probe(url)) !== null : false;
+  let live = url && !offline ? (await probe(url)) !== null : false;
   let portConf = fw === 'static' ? 'high' : !port.port ? 'manual' : port.source === 'default' && !live ? 'medium' : 'high';
   if (probePorts && fw && fw !== 'static' && !live && port.source === 'default') {
     const hits = await Promise.all(PROBE.filter((p) => p !== port.port).map(async (p) => ({ p, html: await probe(`http://localhost:${p}`) })));

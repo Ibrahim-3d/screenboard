@@ -5,7 +5,7 @@ import { detect } from '../src/detect.mjs';
 
 const fx = (name) => fileURLToPath(new URL(`../fixtures/${name}`, import.meta.url));
 const paths = (d) => d.routes.map((r) => r.path).sort();
-const run = (name) => detect(fx(name), { probePorts: false });
+const run = (name) => detect(fx(name), { probePorts: false, offline: true }); // results must not depend on what runs on this machine's ports
 
 test('next app router: groups stripped, parallel/private skipped, dynamic sampled from content/, catch-all skipped', async () => {
   const d = await run('next');
