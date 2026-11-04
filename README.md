@@ -19,6 +19,7 @@ Zero dependencies, Node 20+, local only (binds to 127.0.0.1).
 - **Mockups space**: static HTML files served straight from disk. A folder adds every `.html` in it; links between mockup pages work.
 - **Comments**: press `C`, click anything, type. Pins are anchored to the element (CSS selector + offset), so they follow layout changes. Drag to move, reply, resolve, delete. The list has Open / Resolved / All filters; the open count is always visible.
 - **Box snapshots**: in comment mode, drag instead of click to draw a box. The board saves two PNGs with a code (`SB-0001`): the boxed area, and the whole frame with the box outlined, so an agent sees exactly what you meant. Pixels come from a capture of the board's own tab (WebGL and canvases included; the browser asks once per session). If you refuse, a DOM snapshot is used instead and marked as such (canvases may come out blank).
+- **Export**: every frame has an Export button next to ▶ Preview (one JPG), and Export all in the header downloads every frame of the current space as one zip. Shots are rendered headless at 1:1 with the same full-length logic as the canvas, without pins.
 - Pan (drag the background, or Space + drag), zoom (Ctrl/Cmd + wheel), drag a frame by its label (positions are remembered), Fit, Reset layout, Reload frames, ▶ Preview (full size, step through every frame with the arrow keys; also on each frame), and the label link opens the page alone (with pins). Shortcuts sit at the bottom left.
 
 Pins are stored in `.screenboard/comments.json`: pretty-printed UTF-8, one array, easy to diff and commit. Snapshots sit next to it in `.screenboard/shots/`; a box pin carries `shot: { code, file, ctxFile, box, method }` (box = % of the anchor element, plus px, devicePixelRatio and viewport at capture). Deleting a pin deletes its PNGs.
@@ -33,6 +34,7 @@ Pins are stored in `.screenboard/comments.json`: pretty-printed UTF-8, one array
 | `screenboard comments [--open\|--resolved] [--json]` | List pins with the frame, the source file, the element (tag, classes, text), the selector and the thread. |
 | `screenboard reply <id> ["text"] [--resolve\|--reopen]` | Answer a pin as the agent. |
 | `screenboard shot <code\|id>` | Absolute paths of a box pin's two PNGs. |
+| `screenboard render [match...] [--viewport] [--wait ms]` | Every frame (or those whose id contains a match, like `phone:` or `/pricing`) to a JPG in `.screenboard/renders/`, with `manifest.json` (id, url, device, width, height, source file). Frames run in parallel headless tabs. `--viewport` shoots only the first screen. Needs Chrome or Edge (or `CHROME_PATH`) and Node 22+. |
 | `screenboard --check` | Self-test: boots a board against a fake dev server and checks every route. |
 
 ## The agent loop
@@ -93,6 +95,8 @@ If the configured port is not answering and it was only the framework default, c
 - At most 60 routes are framed; use `exclude` or `routes` for larger sites.
 - Pins are matched by CSS path; a big markup change can move a pin to its nearest surviving parent.
 - Tab-capture snapshots are as sharp as the screen: a box drawn on a zoomed-out board is small. Draw it in ▶ Preview (full size) for detail. The DOM fallback renders at full size but cannot show WebGL, video or cross-origin images, and uses only same-origin styles.
+
+- Export and `render` wait for the network to go quiet (at most 8 s, `--wait` to change), so a page that keeps polling is shot at the cap. Pages taller than 16000 px are cut there. Screens behind a login show what a fresh browser sees.
 
 ## License
 

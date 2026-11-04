@@ -24,6 +24,10 @@ Leave it running. Comment mode is the C key: a click drops a pin, a drag draws a
 4. `{{RUN}} reply <id> "what changed" --resolve`, naming the shot code when there is one ("SB-0001: ..."). If the request is unclear, reply with a question and leave it open.
 5. Re-check: the board hot-reloads; look at the frame (or a screenshot) before resolving. Repeat until `comments --open` is empty.
 
+## See every screen without taking screenshots by hand
+
+`{{RUN}} render` shoots every frame (all routes × devices, all mockups) to JPGs in `.screenboard/renders/` in one run, with `manifest.json` listing each file, route, device, size and source file. After changing a few screens, reshoot only those: `{{RUN}} render /pricing phone:` (any part of a frame id). Read the JPGs from the manifest instead of opening a browser and screenshotting each page. The dev server must be running.
+
 ## Other commands
 
 - `{{RUN}} shot <code|id>`: absolute paths of a box pin's two PNGs.

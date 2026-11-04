@@ -230,6 +230,14 @@
         width: 100%;
         background: #fff;
       }
+      html.solo,
+      html.solo body {
+        overflow: visible;
+        height: auto;
+      }
+      html.solo body > :not(.frame) {
+        display: none !important;
+      }
       .frame .screen {
         position: relative;
         overflow: hidden;
@@ -269,6 +277,7 @@
       <button id="reload">Reload frames</button>
       <span id="cm-slot"></span>
       <button id="play-all">▶ Preview</button>
+      <button id="export-all">Export all</button>
     </header>
     <main id="view"><div id="world"></div><div id="empty" hidden></div></main>
     <aside id="keys" aria-label="Shortcuts">
@@ -464,9 +473,14 @@
         play.textContent = "▶ Preview";
         play.setAttribute("aria-label", `Preview ${d.label}`);
         play.addEventListener("click", () => openPlay(d));
+        const exp = document.createElement("button");
+        exp.className = "play";
+        exp.textContent = "Export";
+        exp.setAttribute("aria-label", `Export ${d.label}`);
+        exp.addEventListener("click", () => exportFrames([d.id], exp));
         const right = document.createElement("span");
         right.style.cssText = "display:flex;gap:16px;align-items:center";
-        right.append(play, size);
+        right.append(play, exp, size);
         label.append(a, right);
         const box = document.createElement("div");
         box.className = "screen";
@@ -706,6 +720,30 @@
         const d = cfg.frames.find((x) => x.id === near?.dataset.id) || visible()[0];
         if (d) openPlay(d);
       });
+      // Export: the server renders the frames headless at 1:1 (same as `render`) and returns one JPG or a zip.
+      async function exportFrames(ids, btn) {
+        const text = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = "Exporting…";
+        try {
+          const r = await fetch("api/render", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ids, full }) });
+          if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "HTTP " + r.status);
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(await r.blob());
+          a.download = /filename="([^"]+)"/.exec(r.headers.get("content-disposition"))?.[1] || "frames";
+          a.click();
+          setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+          btn.textContent = text;
+        } catch (e) {
+          btn.textContent = "Failed";
+          btn.title = e.message;
+          setTimeout(() => ((btn.textContent = text), (btn.title = "")), 4000);
+        } finally {
+          btn.disabled = false;
+        }
+      }
+      const exportAll = document.getElementById("export-all");
+      exportAll.addEventListener("click", () => exportFrames(visible().map((f) => f.id), exportAll));
       document.getElementById("play-prev").addEventListener("click", () => stepPlay(-1));
       document.getElementById("play-next").addEventListener("click", () => stepPlay(1));
       document.getElementById("play-close").addEventListener("click", closePlay);
@@ -716,7 +754,40 @@
         if (e.key === "ArrowLeft") stepPlay(-1);
       });
 
+      // Solo (used by `render`): one frame at 1:1 in the top-left corner, same full-length logic, no board chrome or pins.
+      const SOLO = new URLSearchParams(location.search).get("solo");
+      function soloView(c) {
+        const d = c.frames.find((x) => x.id === SOLO);
+        if (!d) return (window.BOARD.solo = Promise.reject(new Error("no frame " + SOLO)));
+        full = new URLSearchParams(location.search).get("full") !== "0";
+        document.documentElement.classList.add("solo");
+        const fr = document.createElement("div");
+        fr.className = "frame";
+        const box = document.createElement("div");
+        box.className = "screen";
+        box.dataset.h = d.height;
+        box.style.cssText = `width:${d.width}px;height:${d.height}px`;
+        const f = document.createElement("iframe");
+        f.title = d.label;
+        f.dataset.frame = d.id;
+        box.append(f);
+        fr.append(box);
+        document.body.append(fr);
+        window.BOARD.measure = () => (grow(fr), { width: d.width, height: box.offsetHeight });
+        window.BOARD.solo = new Promise((resolve) =>
+          f.addEventListener("load", () => {
+            const hide = f.contentDocument.createElement("style");
+            hide.textContent = "[id^=cm-]{display:none!important}";
+            f.contentDocument.head?.append(hide);
+            fr.classList.add("loaded");
+            resolve(window.BOARD.measure());
+          }, { once: true }),
+        );
+        f.src = d.url;
+      }
+
       cfgReady.then((c) => {
+        if (SOLO) return soloView(c);
         cfg = c;
         key = "board:" + c.title;
         document.title = c.title;

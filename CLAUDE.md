@@ -11,6 +11,7 @@ README.md is the public user doc. This file is for agents working in this repo.
 | Self-test (boots a board against a fake dev server, 30 checks incl. snapshots) | `npm run check` |
 | Start a board | `node bin/screenboard.mjs [dev] [--port N] [--start] [--open]` |
 | Try detection without writing | `node bin/screenboard.mjs init --dry-run` (run it inside an app folder) |
+| Shoot every frame (JPG + manifest in `.screenboard/renders/`) | `node bin/screenboard.mjs render [match...] [--viewport]` |
 | Pins for an agent | `node bin/screenboard.mjs comments --open [--json]`, `reply <id> "text" [--resolve]`, `shot <code|id>` |
 
 Run commands from this folder. Default board port is 5191 (next free one if busy). 5190 belongs to the FabLab prototype, 5180 to the FabLab app.
@@ -18,6 +19,7 @@ Run commands from this folder. Default board port is 5191 (next free one if busy
 ## Layout
 - `bin/screenboard.mjs`: CLI entry (init, dev, add, comments, reply, --check).
 - `src/detect.mjs`: framework, dev port and route detection. `src/server.mjs`: board server with a same-origin proxy (HTTP plus the HMR websocket). `src/store.mjs`: pin store. `src/config.mjs`, `src/check.mjs`.
+- `src/render.mjs`: headless Chrome/Edge over the DevTools protocol (Node's built-in WebSocket), parallel tabs, each opening the board in solo mode (`?solo=<frame id>`); also the store-only zip for Export all. Used by the `render` command and `POST /api/render` (the Export buttons).
 - `src/name.mjs`: the tool name comes from `package.json` only; every file name, folder, URL prefix and command derives from it. Renaming = change `package.json` `name` (and the skill is templated with `{{NAME}}`).
 - `ui/board.html`, `ui/comments.js`: the canvas and the comment layer (served to the browser, injected into frames).
 - `skill/SKILL.md`: the agent skill that `init` installs into a target repo's `.claude/skills/`.
@@ -44,6 +46,7 @@ Built 2026-11-03 in the FabLab project (`E:\active_AI_WORKSPACE\PROJECTS\Fablab`
 Published: screenboard@0.1.0 on npm (2026-11-03), repo github.com/Ibrahim-3d/screenboard, site ibrahim-3d.github.io/screenboard.
 Done and tested: init/dev/add/comments/reply/--check, detection for Next (app and pages), Vite with and without react-router, Astro, SvelteKit, Nuxt, Remix, Eleventy, plain HTML, mockups-only repos; canvas with pan/zoom/drag/Fit/Reset/Reload; ▶ Preview (full size, arrow keys step through frames); C pins (drag, reply, resolve, delete, filtered list, open count); layout-proof C key; box snapshots (drag a box in comment mode: tab capture with one prompt per session, DOM fallback), verified in isolated headless Chromium on WebGL, 2D canvas and DOM content, at board zoom 25% and in Preview 1:1.
 Real runs: the FabLab app (Vite, port 5180, medium confidence because no router, only `/`), the FabLab mockups (4 files), the v3 portfolio (`ibrahim3d-v3`, Next, port 3550, 31 routes, high confidence; its dev server was not running so frames showed the start command).
+Render/Export (2026-11-04): `render` command, per-frame Export and Export all buttons, JPG q80 (about half a PNG). Real runs: demo 6 frames 3.6 s, FabLab mockups 12 frames 8.6 s (WebGL captured), Corallo POS on live Vite 2 frames 1.7 s. Needs Node 22+ (WebSocket, zlib.crc32); the rest still runs on 20. The sveltekit detection test fails when something is listening on 5173 (environmental).
 Known limits: see README "Limits" (dynamic routes without a list, router-less SPAs, monorepo roots, 60-route cap, root-absolute links in mockups, pins drifting after big markup changes).
 
 ## Open items

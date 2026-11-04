@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CLI: init · dev (default) · add · comments · reply · shot · --check. See README.md.
+// CLI: init · dev (default) · add · comments · reply · shot · render · --check. See README.md.
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -9,9 +9,10 @@ import { buildFrames, findRoot, loadConfig, saveConfig, mockupFiles, DEFAULTS } 
 import { createBoard, listen } from '../src/server.mjs';
 import * as store from '../src/store.mjs';
 import { selfCheck } from '../src/check.mjs';
+import { renderToDir } from '../src/render.mjs';
 
 const argv = process.argv.slice(2);
-const VALUED = ['--port', '--label', '--width', '--height'];
+const VALUED = ['--port', '--label', '--width', '--height', '--wait'];
 const val = (n) => { const i = argv.indexOf(n); return i >= 0 ? argv[i + 1] : undefined; };
 const has = (n) => argv.includes(n);
 const pos = argv.filter((a, i) => !a.startsWith('--') && !VALUED.includes(argv[i - 1]));
@@ -27,6 +28,7 @@ const HELP = `${NAME} ${VERSION}
   ${NAME} comments [--open|--resolved] [--json]          list pins (frame, source file, element, thread)
   ${NAME} reply <id> ["text"] [--resolve|--reopen]       answer a pin as the agent
   ${NAME} shot <code|id>                                 absolute paths of a box pin's snapshot PNGs
+  ${NAME} render [match...] [--viewport] [--wait ms]     every frame (or those whose id contains a match) to JPG + manifest
   ${NAME} --check                                        self-test`;
 
 /** A config from detection: only keys that differ from the defaults are written. */
@@ -199,6 +201,34 @@ function shot() {
   out(path.join(root, p.shot.file), path.join(root, p.shot.ctxFile));
 }
 
-const run = { init, dev, add, comments, reply, shot, check, help: () => out(HELP), version: () => out(VERSION) }[cmd];
+/** Every frame to a JPG in <data dir>/renders, with manifest.json (merged, so a partial run keeps the other rows). */
+async function render() {
+  const root = findRoot();
+  const cfg = loadConfig(root) || configFrom(root, await detect(root));
+  const match = pos.slice(1).map((m) => m.toLowerCase());
+  let frames = (await buildFrames(root, cfg)).filter((f) => !match.length || match.some((m) => f.id.toLowerCase().includes(m)));
+  const appUrl = cfg.app?.url;
+  if (appUrl && frames.some((f) => f.space === 'App') && (await probe(appUrl)) === null) {
+    out(`app not running on ${appUrl}: skipping App frames (${cfg.app.start || 'start it'} first)`);
+    frames = frames.filter((f) => f.space !== 'App');
+  }
+  if (!frames.length) fail(match.length ? `no frame matches ${match.join(' ')}` : 'no frames');
+  const server = createBoard({ root, cfg, commentsFile: path.join(root, COMMENTS_FILE) });
+  const port = await listen(server, 0);
+  const t = Date.now();
+  let r;
+  try {
+    r = await renderToDir({ root, board: `http://localhost:${port}`, frames, full: !has('--viewport'), settle: Number(val('--wait')) || 8000, log: (l) => l.startsWith('FAIL') && out(l) });
+  } finally {
+    server.close();
+  }
+  const { rows, outDir, manifestFile } = r;
+  const bad = rows.filter((r) => r.error).length;
+  out(`rendered ${rows.length - bad}/${rows.length} frames in ${((Date.now() - t) / 1000).toFixed(1)}s → ${outDir}`, `manifest: ${manifestFile}`);
+  if (rows.some((r) => r.cut)) out(`note: pages taller than 16000 px were cut there (cut: true in the manifest)`);
+  if (bad) process.exitCode = 1;
+}
+
+const run = { init, dev, add, comments, reply, shot, render, check, help: () => out(HELP), version: () => out(VERSION) }[cmd];
 if (!run) fail(`unknown command "${cmd}"\n\n${HELP}`);
 Promise.resolve(run()).catch((e) => fail(e.message));

@@ -4,6 +4,7 @@
 //   PREFIX/                 the canvas            PREFIX/comments.js   pin layer (also injected into every HTML page)
 //   PREFIX/api/config       board config + frames GET|POST PREFIX/api/comments   pins (see store.mjs)
 //   PREFIX/files/<path>     mockup files, only inside registered mockup folders
+//   POST PREFIX/api/render  { ids, full } -> one JPG, or a zip of several (also kept in <data dir>/renders)
 //   PREFIX/shots/<code>.png box snapshots (and <code>-ctx.png), from <data dir>/shots only
 import fs from 'node:fs';
 import http from 'node:http';
@@ -13,6 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { PREFIX, SHOT_PREFIX } from './name.mjs';
 import * as store from './store.mjs';
 import { buildFrames, mockupDirs, publicConfig, DEFAULTS } from './config.mjs';
+import { renderToDir, zip } from './render.mjs';
 
 const UI = fileURLToPath(new URL('../ui/', import.meta.url));
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.avif': 'image/avif', '.ico': 'image/x-icon', '.woff': 'font/woff', '.woff2': 'font/woff2', '.ttf': 'font/ttf', '.mp4': 'video/mp4', '.webm': 'video/webm', '.glb': 'model/gltf-binary', '.txt': 'text/plain; charset=utf-8', '.xml': 'application/xml' };
@@ -55,7 +57,38 @@ export function createBoard({ root, cfg, commentsFile }) {
   const shotsDir = path.join(path.dirname(commentsFile), 'shots');
   const rel = (f) => path.relative(root, f).split(path.sep).join('/');
 
+  let rendering = false;
+  function exportFrames(req, res) {
+    if (req.method !== 'POST' || !String(req.headers['content-type']).startsWith('application/json')) return send(res, 415, { error: 'POST application/json' });
+    if (req.headers.origin && new URL(req.headers.origin).host !== req.headers.host) return send(res, 403, { error: 'cross-origin request refused' });
+    if (rendering) return send(res, 409, { error: 'an export is already running' });
+    let body = '';
+    req.setEncoding('utf8');
+    req.on('data', (c) => (body += c).length > 1e6 && req.destroy());
+    req.on('end', async () => {
+      rendering = true;
+      try {
+        const { ids, full = true } = JSON.parse(body);
+        const frames = (await buildFrames(root, cfg)).filter((f) => ids.includes(f.id));
+        if (!frames.length) return send(res, 400, { error: 'no such frames' });
+        const { rows, outDir } = await renderToDir({ root, board: `http://localhost:${server.address().port}`, frames, full: full !== false });
+        const ok = rows.filter((r) => r.file);
+        if (!ok.length) return send(res, 500, { error: rows[0].error });
+        const one = frames.length === 1;
+        const read = (r) => fs.readFileSync(path.join(outDir, r.file));
+        const name = one ? ok[0].file : `${(cfg.title || 'board').replace(/[^\w.-]+/g, '-')}-frames.zip`;
+        res.writeHead(200, { 'content-type': one ? 'image/jpeg' : 'application/zip', 'content-disposition': `attachment; filename="${name}"`, 'x-failed': String(rows.length - ok.length), 'cache-control': 'no-store' });
+        res.end(one ? read(ok[0]) : zip(ok.map((r) => ({ name: r.file, data: read(r) }))));
+      } catch (e) {
+        send(res, 500, { error: e.message });
+      } finally {
+        rendering = false;
+      }
+    });
+  }
+
   function api(req, res, p) {
+    if (p === '/api/render') return exportFrames(req, res);
     if (p === '/api/config') {
       return buildFrames(root, cfg).then((frames) => send(res, 200, publicConfig(root, cfg, frames)), (e) => send(res, 500, { error: e.message }));
     }
