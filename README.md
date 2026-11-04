@@ -7,6 +7,7 @@ Every route of your app and every HTML mockup on one pan/zoom canvas, live, with
 ```
 npx screenboard init     # detect the app, write screenboard.config.json, install the agent skill
 npx screenboard --open   # start the board and open it
+npx screenboard render   # every screen to a JPG, with a manifest for your agent
 ```
 
 ![screenboard demo](https://raw.githubusercontent.com/Ibrahim-3d/screenboard/main/docs/demo.gif)
